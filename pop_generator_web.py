@@ -4,78 +4,93 @@ import io
 
 st.set_page_config(page_title="POP Generator Mitra Bangunan", layout="centered")
 
+# Sidebar Input
 with st.sidebar:
     st.header("🛠️ Input Produk")
     nama_produk = st.text_input("Nama Produk", "GRANIT POLISHED 80X160")
-    harga_awal = st.number_input("Harga Awal", min_value=0, value=269141)
-    harga_promo = st.number_input("Harga Promo", min_value=0, value=248013)
+    harga_awal   = st.number_input("Harga Awal", min_value=0, value=269141)
+    harga_promo  = st.number_input("Harga Promo", min_value=0, value=248013)
     diskon_utama = st.number_input("Diskon Utama (%)", min_value=0, value=5)
-    diskon_member = st.number_input("Diskon Member (%)", min_value=0, value=3)
+    diskon_member= st.number_input("Diskon Member (%)", min_value=0, value=3)
+    bg_file      = st.file_uploader("Upload Background", type=["jpg","jpeg","png"])
+    logo_file    = st.file_uploader("Upload Logo", type=["png","jpg","jpeg"])
+    ok           = st.button("🎯 Generate POP")
 
-    uploaded_bg = st.file_uploader("Upload Background", type=["jpg", "png"])
-    uploaded_logo = st.file_uploader("Upload Logo Produk", type=["jpg", "png"])
+# Rupiah formatter
+def format_rp(x):
+    return f"Rp{x:,.0f}".replace(",", ".")
 
-    generate = st.button("🎯 Generate POP")
+# Fallback font loader
+def load_font(size):
+    try:
+        return ImageFont.truetype("arial.ttf", size)
+    except:
+        return ImageFont.load_default()
 
-def format_rupiah(nilai):
-    return f"Rp{nilai:,}".replace(",", ".")
-
-if generate and uploaded_bg and uploaded_logo:
-    bg = Image.open(uploaded_bg).convert("RGBA")
-    logo = Image.open(uploaded_logo).convert("RGBA")
-    logo.thumbnail((250, 250))
-
+if ok and bg_file:
+    bg = Image.open(bg_file).convert("RGBA")
+    W, H = bg.size
     draw = ImageDraw.Draw(bg)
 
-    center_x = bg.width // 2
-    center_y = int(bg.height * 0.54)  # tengah lingkaran putih
+    # center of white circle (manual tune if perlu)
+    cx, cy = W//2, int(H*0.55)
 
-    # Font fallback helper
-    def get_font(size):
-        try:
-            return ImageFont.truetype("arial.ttf", size=size)
-        except:
-            return ImageFont.load_default()
+    # Draw Logo
+    if logo_file:
+        logo = Image.open(logo_file).convert("RGBA")
+        logo.thumbnail((180,180))
+        bg.paste(logo, (W - logo.width - 40, 40), logo)
 
-    # Tulis nama produk (besar)
-    font_produk = get_font(60)
-    text_produk = nama_produk.upper()
-    w = draw.textlength(text_produk, font=font_produk)
-    draw.text((center_x - w / 2, center_y - 250), text_produk, fill="black", font=font_produk)
+    # Text sizes
+    f_prod  = load_font(60)
+    f_price_small = load_font(40)
+    f_price_big   = load_font(100)
+    f_disc_num    = load_font(80)
+    f_disc_lbl    = load_font(30)
 
-    # Harga coret
-    font_awal = get_font(45)
-    harga_awal_text = format_rupiah(harga_awal)
-    w = draw.textlength(harga_awal_text, font=font_awal)
-    draw.text((center_x - w / 2, center_y - 150), harga_awal_text, fill="gray", font=font_awal)
-    draw.line([(center_x - w / 2, center_y - 140), (center_x + w / 2, center_y - 140)], fill="gray", width=4)
+    # 1) Nama Produk
+    w,h = draw.textsize(nama_produk, font=f_prod)
+    draw.text((cx - w//2, cy - 260), nama_produk, font=f_prod, fill="black")
 
-    # Harga promo besar
-    font_promo = get_font(100)
-    harga_promo_text = format_rupiah(harga_promo)
-    w = draw.textlength(harga_promo_text, font=font_promo)
-    draw.text((center_x - w / 2, center_y - 60), harga_promo_text, fill="red", font=font_promo)
+    # 2) Harga Awal (coret)
+    t_awal = format_rp(harga_awal)
+    w,h = draw.textsize(t_awal, font=f_price_small)
+    draw.text((cx - w//2, cy - 180), t_awal, font=f_price_small, fill="gray")
+    draw.line([(cx - w//2, cy - 160),(cx + w//2, cy - 160)], fill="gray", width=4)
 
-    # Diskon Utama
-    font_diskon = get_font(65)
-    diskon_text = f"DISKON {diskon_utama}%"
-    w = draw.textlength(diskon_text, font=font_diskon)
-    draw.text((center_x - w / 2, center_y + 70), diskon_text, fill="red", font=font_diskon)
+    # 3) Harga Promo
+    t_promo = format_rp(harga_promo)
+    w,h = draw.textsize(t_promo, font=f_price_big)
+    draw.text((cx - w//2, cy - 90), t_promo, font=f_price_big, fill="red")
 
-    # Diskon Member
-    font_member = get_font(55)
-    member_text = f"MEMBER +{diskon_member}%"
-    w = draw.textlength(member_text, font=font_member)
-    draw.text((center_x - w / 2, center_y + 140), member_text, fill="blue", font=font_member)
+    # 4) Lingkaran Diskon Utama
+    radius = 120
+    x0,y0 = cx - radius - 50, cy + 20 - radius
+    x1,y1 = cx - 50 + radius, cy + 20 + radius
+    draw.ellipse([x0,y0,x1,y1], fill="red")
+    txt = f"{diskon_utama}%"
+    w,h = draw.textsize(txt, font=f_disc_num)
+    draw.text((cx - 50 - w//2, cy + 20 - h//2), txt, font=f_disc_num, fill="white")
+    lbl = "DISKON"
+    w2,h2 = draw.textsize(lbl, font=f_disc_lbl)
+    draw.text((cx - 50 - w2//2, cy + 20 + radius - h2 - 10), lbl, font=f_disc_lbl, fill="white")
 
-    # Logo pojok kanan atas
-    bg.paste(logo, (center_x + 100, 80), mask=logo)
+    # 5) Lingkaran Diskon Member
+    radius2 = 100
+    x0,y0 = cx + 50 - radius2, cy + 30 - radius2
+    x1,y1 = cx + 50 + radius2, cy + 30 + radius2
+    draw.ellipse([x0,y0,x1,y1], fill="blue")
+    txt2 = f"+{diskon_member}%"
+    w,h = draw.textsize(txt2, font=f_disc_num)
+    draw.text((cx + 50 - w//2, cy + 30 - h//2), txt2, font=f_disc_num, fill="white")
+    lbl2 = "MEMBER"
+    w2,h2 = draw.textsize(lbl2, font=f_disc_lbl)
+    draw.text((cx + 50 - w2//2, cy + 30 + radius2 - h2 - 10), lbl2, font=f_disc_lbl, fill="white")
 
-    # Tampilkan & download
-    st.image(bg, caption="Hasil POP", use_column_width=True)
-    img_bytes = io.BytesIO()
-    bg.save(img_bytes, format="PNG")
-    st.download_button("⬇️ Download POP", data=img_bytes.getvalue(), file_name="POP_MitraBangunan.png", mime="image/png")
+    # Show & Download
+    st.image(bg, use_column_width=True)
+    buf = io.BytesIO(); bg.save(buf,"PNG")
+    st.download_button("⬇️ Download POP", buf.getvalue(), "POP_MitraBangunan.png", "image/png")
 
-elif generate:
-    st.warning("Mohon upload background dan logo terlebih dahulu.")
+else:
+    st.info("Upload background dulu, lalu klik Generate POP.")
