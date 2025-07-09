@@ -1,85 +1,90 @@
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 import io
+import os
 
 st.set_page_config(page_title="POP Generator Mitra Bangunan", layout="centered")
 
 with st.sidebar:
     st.header("🛠️ Input Produk")
     nama_produk   = st.text_input("Nama Produk", "TRISENSA CERAMICS 80X80")
-    harga_awal    = st.number_input("Harga Awal", min_value=0, value=269401)
-    harga_promo   = st.number_input("Harga Promo", min_value=0, value=249801)
+    harga_awal    = st.number_input("Harga Awal", min_value=0, value=269141)
+    harga_promo   = st.number_input("Harga Promo", min_value=0, value=248013)
     diskon_utama  = st.number_input("Diskon Utama (%)", min_value=0, value=5)
     diskon_member = st.number_input("Diskon Member (%)", min_value=0, value=3)
-    bg_file       = st.file_uploader("Upload Background", type=["jpg","jpeg","png"])
-    logo_file     = st.file_uploader("Upload Logo (PNG)", type=["png"])
+    bg_file       = st.file_uploader("Upload Background (JPG/PNG)", type=["jpg", "jpeg", "png"])
+    logo_file     = st.file_uploader("Upload Logo Produk (PNG)", type=["png"])
     go            = st.button("🎯 Generate POP")
 
-def format_rp(x):
-    return f"Rp{x:,.0f}".replace(",", ".")
+def format_rupiah(nilai):
+    return f"Rp{nilai:,.0f}".replace(",", ".")
 
-def load_font(sz):
+def get_font(size):
     try:
-        return ImageFont.truetype("arial.ttf", sz)
+        return ImageFont.truetype("arial.ttf", size)
     except:
         return ImageFont.load_default()
 
+def center_draw(draw, text, font, center_x, y, fill):
+    # Mengukur teks pakai bbox (lebih aman)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_width = bbox[2] - bbox[0]
+    x = center_x - text_width // 2
+    draw.text((x, y), text, font=font, fill=fill)
+
 if go and bg_file:
     bg = Image.open(bg_file).convert("RGBA")
-    W,H = bg.size
+    W, H = bg.size
     draw = ImageDraw.Draw(bg)
-    cx,cy = W//2, int(H*0.55)
+    cx, cy = W // 2, int(H * 0.55)
+
+    # Font
+    f_prod = get_font(60)
+    f_price = get_font(100)
+    f_disc = get_font(80)
+    f_label = get_font(30)
+    f_strike = get_font(40)
 
     # Logo pojok kanan atas
     if logo_file:
         logo = Image.open(logo_file).convert("RGBA")
         logo.thumbnail((180,180))
-        bg.paste(logo, (W-logo.width-40, 40), logo)
+        bg.paste(logo, (W - logo.width - 40, 40), logo)
 
-    # Fonts
-    f_prod = load_font(60)
-    f_small= load_font(40)
-    f_big  = load_font(100)
-    f_num  = load_font(80)
-    f_lbl  = load_font(30)
+    # Nama produk
+    center_draw(draw, nama_produk, f_prod, cx, cy - 260, "black")
 
-    # Helper center text
-    def center_text(text, font, y, fill):
-        w,h = font.getsize(text)
-        draw.text((cx - w//2, y), text, font=font, fill=fill)
+    # Harga awal (coret)
+    text_awal = format_rupiah(harga_awal)
+    bbox = draw.textbbox((0, 0), text_awal, font=f_strike)
+    tw = bbox[2] - bbox[0]
+    tx = cx - tw // 2
+    ty = cy - 180
+    draw.text((tx, ty), text_awal, font=f_strike, fill="gray")
+    draw.line([(tx, ty + 20), (tx + tw, ty + 20)], fill="gray", width=3)
 
-    # 1) Produk
-    center_text(nama_produk, f_prod, cy-260, "black")
+    # Harga promo
+    center_draw(draw, format_rupiah(harga_promo), f_price, cx, cy - 90, "red")
 
-    # 2) Harga awal (coret)
-    t0 = format_rp(harga_awal)
-    w0,_ = f_small.getsize(t0)
-    draw.text((cx - w0//2, cy-180), t0, font=f_small, fill="gray")
-    draw.line([(cx - w0//2, cy-160),(cx + w0//2, cy-160)], fill="gray", width=4)
+    # Lingkaran diskon utama (merah)
+    r = 130
+    dx, dy = -100, 100
+    draw.ellipse([cx + dx - r, cy + dy - r, cx + dx + r, cy + dy + r], fill="red")
+    center_draw(draw, f"{diskon_utama}%", f_disc, cx + dx, cy + dy - 20, "white")
+    center_draw(draw, "DISKON", f_label, cx + dx, cy + dy + 60, "white")
 
-    # 3) Harga promo
-    t1 = format_rp(harga_promo)
-    center_text(t1, f_big, cy-90, "red")
+    # Lingkaran diskon member (biru)
+    r2 = 100
+    dx2, dy2 = 100, 100
+    draw.ellipse([cx + dx2 - r2, cy + dy2 - r2, cx + dx2 + r2, cy + dy2 + r2], fill="blue")
+    center_draw(draw, f"+{diskon_member}%", f_disc, cx + dx2, cy + dy2 - 20, "white")
+    center_draw(draw, "MEMBER", f_label, cx + dx2, cy + dy2 + 50, "white")
 
-    # 4) Diskon Utama (lingkaran merah)
-    r,dx,dy = 120, -50, 20
-    draw.ellipse([cx+dx-r, cy+dy-r, cx+dx+r, cy+dy+r], fill="red")
-    txt = f"{diskon_utama}%"
-    center_text(txt, f_num, cy+dy - f_num.getsize(txt)[1]//2, "white")
-    lbl="DISKON"
-    center_text(lbl, f_lbl, cy+dy + r - f_lbl.getsize(lbl)[1] - 10, "white")
-
-    # 5) Diskon Member (lingkaran biru)
-    r2,dx2,dy2 = 100, 50, 30
-    draw.ellipse([cx+dx2-r2, cy+dy2-r2, cx+dx2+r2, cy+dy2+r2], fill="blue")
-    txt2 = f"+{diskon_member}%"
-    center_text(txt2, f_num, cy+dy2 - f_num.getsize(txt2)[1]//2, "white")
-    lbl2="MEMBER"
-    center_text(lbl2, f_lbl, cy+dy2 + r2 - f_lbl.getsize(lbl2)[1] - 10, "white")
-
-    # Tampilkan + Download
+    # Output dan download
     st.image(bg, use_column_width=True)
-    buf = io.BytesIO(); bg.save(buf,"PNG")
+    buf = io.BytesIO()
+    bg.save(buf, format="PNG")
     st.download_button("⬇️ Download POP", buf.getvalue(), "POP_MitraBangunan.png", "image/png")
+
 else:
-    st.info("Upload background dan klik Generate POP.")
+    st.info("Silakan upload background lalu klik Generate POP.")
